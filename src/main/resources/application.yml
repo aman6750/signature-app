@@ -31,3 +31,6 @@ spring:
 jwt:
   secret: ThisIsMySuperSecretKeyForJWTTokenGenerationMustBeLongEnoughForHS256
   expiration: 86400000
+
+file:
+  upload-dir: ./uploads
