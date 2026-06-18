@@ -1,6 +1,8 @@
 package com.signatureapp.service;
 
+import com.signatureapp.dto.DocumentResponse;
 import com.signatureapp.dto.PlaceSignatureRequest;
+import com.signatureapp.dto.SignWithDataRequest;
 import com.signatureapp.dto.SignatureResponse;
 import com.signatureapp.model.Document;
 import com.signatureapp.model.Signature;
@@ -11,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,6 +23,7 @@ public class SignatureService {
 
     private final SignatureRepository signatureRepository;
     private final DocumentRepository documentRepository;
+    private final PdfSigningService pdfSigningService;
 
     @Transactional
     public SignatureResponse placeSignature(PlaceSignatureRequest request, User currentUser) {
@@ -57,5 +61,37 @@ public class SignatureService {
                 .map(SignatureResponse::from)
                 .collect(Collectors.toList());
     }
-}
 
+    @Transactional
+    public DocumentResponse finalizeSignatures(SignWithDataRequest request, User currentUser) {
+
+        Document document = documentRepository.findByIdAndUploadedBy(request.getDocumentId(), currentUser)
+                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+
+        List<Signature> signatures = signatureRepository.findByDocument(document);
+
+        if (signatures.isEmpty()) {
+            throw new RuntimeException("No signature placements found. Place at least one signature before finalizing.");
+        }
+
+        if ("SIGNED".equals(document.getStatus())) {
+            throw new RuntimeException("Document is already signed and cannot be modified.");
+        }
+
+        String signedFilePath = pdfSigningService.signPdf(document, signatures, request.getSignatureData());
+
+        document.setSignedFilePath(signedFilePath);
+        document.setStatus("SIGNED");
+        documentRepository.save(document);
+
+        LocalDateTime now = LocalDateTime.now();
+        for (Signature sig : signatures) {
+            sig.setStatus("SIGNED");
+            sig.setSignedAt(now);
+            sig.setSignatureData(request.getSignatureData());
+        }
+        signatureRepository.saveAll(signatures);
+
+        return DocumentResponse.from(document);
+    }
+}

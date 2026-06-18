@@ -26,6 +26,9 @@ public class Document {
     @Column(nullable = false)
     private String storagePath;
 
+    @Column
+    private String signedFilePath;
+
     @Column(nullable = false)
     private String contentType;
 

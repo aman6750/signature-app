@@ -1,6 +1,8 @@
 package com.signatureapp.controller;
 
+import com.signatureapp.dto.DocumentResponse;
 import com.signatureapp.dto.PlaceSignatureRequest;
+import com.signatureapp.dto.SignWithDataRequest;
 import com.signatureapp.dto.SignatureResponse;
 import com.signatureapp.model.User;
 import com.signatureapp.service.SignatureService;
@@ -35,5 +37,14 @@ public class SignatureController {
 
         List<SignatureResponse> signatures = signatureService.getSignaturesForDocument(docId, currentUser);
         return ResponseEntity.ok(signatures);
+    }
+
+    @PostMapping("/finalize")
+    public ResponseEntity<DocumentResponse> finalizeSignatures(
+            @Valid @RequestBody SignWithDataRequest request,
+            @AuthenticationPrincipal User currentUser) {
+
+        DocumentResponse response = signatureService.finalizeSignatures(request, currentUser);
+        return ResponseEntity.ok(response);
     }
 }

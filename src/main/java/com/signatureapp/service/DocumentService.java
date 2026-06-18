@@ -81,4 +81,47 @@ public class DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
         return DocumentResponse.from(document);
     }
+
+
+    public org.springframework.core.io.Resource getOriginalFile(Long id, User currentUser) {
+        Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(document.getStoragePath());
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            if (!resource.exists()) {
+                throw new RuntimeException("File not found on disk");
+            }
+            return resource;
+        } catch (Exception e) {
+            throw new RuntimeException("Could not load file: " + e.getMessage(), e);
+        }
+    }
+
+    public org.springframework.core.io.Resource getSignedFile(Long id, User currentUser) {
+        Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+
+        if (document.getSignedFilePath() == null) {
+            throw new RuntimeException("Document has not been signed yet");
+        }
+
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(document.getSignedFilePath());
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            if (!resource.exists()) {
+                throw new RuntimeException("Signed file not found on disk");
+            }
+            return resource;
+        } catch (Exception e) {
+            throw new RuntimeException("Could not load signed file: " + e.getMessage(), e);
+        }
+    }
+
+    public Document getDocumentEntity(Long id, User currentUser) {
+        return documentRepository.findByIdAndUploadedBy(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+    }
+
 }
