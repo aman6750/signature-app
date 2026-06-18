@@ -4,6 +4,8 @@ import com.signatureapp.dto.DocumentResponse;
 import com.signatureapp.dto.PlaceSignatureRequest;
 import com.signatureapp.dto.SignWithDataRequest;
 import com.signatureapp.dto.SignatureResponse;
+import com.signatureapp.exception.BadRequestException;
+import com.signatureapp.exception.ResourceNotFoundException;
 import com.signatureapp.model.Document;
 import com.signatureapp.model.Signature;
 import com.signatureapp.model.User;
@@ -29,7 +31,7 @@ public class SignatureService {
     public SignatureResponse placeSignature(PlaceSignatureRequest request, User currentUser) {
 
         Document document = documentRepository.findByIdAndUploadedBy(request.getDocumentId(), currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
 
         Signature signature = Signature.builder()
                 .document(document)
@@ -55,7 +57,7 @@ public class SignatureService {
     public List<SignatureResponse> getSignaturesForDocument(Long documentId, User currentUser) {
 
         Document document = documentRepository.findByIdAndUploadedBy(documentId, currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
 
         return signatureRepository.findByDocument(document).stream()
                 .map(SignatureResponse::from)
@@ -66,16 +68,16 @@ public class SignatureService {
     public DocumentResponse finalizeSignatures(SignWithDataRequest request, User currentUser) {
 
         Document document = documentRepository.findByIdAndUploadedBy(request.getDocumentId(), currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
 
         List<Signature> signatures = signatureRepository.findByDocument(document);
 
         if (signatures.isEmpty()) {
-            throw new RuntimeException("No signature placements found. Place at least one signature before finalizing.");
+            throw new BadRequestException("No signature placements found. Place at least one signature before finalizing.");
         }
 
         if ("SIGNED".equals(document.getStatus())) {
-            throw new RuntimeException("Document is already signed and cannot be modified.");
+            throw new BadRequestException("Document is already signed and cannot be modified.");
         }
 
         String signedFilePath = pdfSigningService.signPdf(document, signatures, request.getSignatureData());

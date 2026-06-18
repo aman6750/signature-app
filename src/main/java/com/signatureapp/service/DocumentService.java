@@ -39,11 +39,11 @@ public class DocumentService {
     public DocumentResponse uploadDocument(MultipartFile file, User currentUser) {
 
         if (file.isEmpty()) {
-            throw new RuntimeException("Cannot upload empty file");
+            throw new com.signatureapp.exception.BadRequestException("Cannot upload empty file");
         }
 
         if (!"application/pdf".equals(file.getContentType())) {
-            throw new RuntimeException("Only PDF files are allowed");
+            throw new com.signatureapp.exception.BadRequestException("Only PDF files are allowed");
         }
 
         String originalFileName = file.getOriginalFilename();
@@ -85,7 +85,7 @@ public class DocumentService {
 
     public org.springframework.core.io.Resource getOriginalFile(Long id, User currentUser) {
         Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new com.signatureapp.exception.ResourceNotFoundException("Document not found or access denied"));
 
         try {
             java.nio.file.Path path = java.nio.file.Paths.get(document.getStoragePath());

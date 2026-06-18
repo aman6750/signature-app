@@ -21,7 +21,7 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new com.signatureapp.exception.BadRequestException("Email already registered");
         }
 
         User user = User.builder()
@@ -46,10 +46,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+                .orElseThrow(() -> new com.signatureapp.exception.UnauthorizedException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new com.signatureapp.exception.UnauthorizedException("Invalid email or password");
         }
 
         String token = jwtUtil.generateToken(user.getEmail());
