@@ -6,6 +6,17 @@ server:
 spring:
   application:
     name: signature-app
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: amanyadav6750@gmail.com
+    password: yddlmwtilvhzqruc
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 
   datasource:
@@ -34,3 +45,9 @@ jwt:
 
 file:
   upload-dir: ./uploads
+
+
+app:
+  base-url: http://localhost:8081
+  signing-link:
+    expiration-days: 1

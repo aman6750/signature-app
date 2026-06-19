@@ -1,12 +1,16 @@
 package com.signatureapp.service;
 
 import com.signatureapp.dto.DocumentResponse;
+import com.signatureapp.exception.BadRequestException;
+import com.signatureapp.exception.ResourceNotFoundException;
 import com.signatureapp.model.Document;
 import com.signatureapp.model.User;
 import com.signatureapp.repository.DocumentRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +27,7 @@ import java.util.stream.Collectors;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final AuditService auditService;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -39,11 +44,11 @@ public class DocumentService {
     public DocumentResponse uploadDocument(MultipartFile file, User currentUser) {
 
         if (file.isEmpty()) {
-            throw new com.signatureapp.exception.BadRequestException("Cannot upload empty file");
+            throw new BadRequestException("Cannot upload empty file");
         }
 
         if (!"application/pdf".equals(file.getContentType())) {
-            throw new com.signatureapp.exception.BadRequestException("Only PDF files are allowed");
+            throw new BadRequestException("Only PDF files are allowed");
         }
 
         String originalFileName = file.getOriginalFilename();
@@ -67,6 +72,9 @@ public class DocumentService {
 
         Document saved = documentRepository.save(document);
 
+        auditService.log(currentUser, saved, "DOCUMENT_UPLOAD",
+                "Uploaded: " + originalFileName + " (" + file.getSize() + " bytes)");
+
         return DocumentResponse.from(saved);
     }
 
@@ -78,41 +86,52 @@ public class DocumentService {
 
     public DocumentResponse getDocumentById(Long id, User currentUser) {
         Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
+
+        auditService.log(currentUser, document, "DOCUMENT_VIEW",
+                "Viewed document: " + document.getFileName());
+
         return DocumentResponse.from(document);
     }
 
-
-    public org.springframework.core.io.Resource getOriginalFile(Long id, User currentUser) {
+    public Resource getOriginalFile(Long id, User currentUser) {
         Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
-                .orElseThrow(() -> new com.signatureapp.exception.ResourceNotFoundException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
 
         try {
-            java.nio.file.Path path = java.nio.file.Paths.get(document.getStoragePath());
-            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            Path path = Paths.get(document.getStoragePath());
+            Resource resource = new UrlResource(path.toUri());
             if (!resource.exists()) {
-                throw new RuntimeException("File not found on disk");
+                throw new ResourceNotFoundException("File not found on disk");
             }
+
+            auditService.log(currentUser, document, "DOCUMENT_DOWNLOAD",
+                    "Downloaded original: " + document.getFileName());
+
             return resource;
         } catch (Exception e) {
             throw new RuntimeException("Could not load file: " + e.getMessage(), e);
         }
     }
 
-    public org.springframework.core.io.Resource getSignedFile(Long id, User currentUser) {
+    public Resource getSignedFile(Long id, User currentUser) {
         Document document = documentRepository.findByIdAndUploadedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
 
         if (document.getSignedFilePath() == null) {
-            throw new RuntimeException("Document has not been signed yet");
+            throw new BadRequestException("Document has not been signed yet");
         }
 
         try {
-            java.nio.file.Path path = java.nio.file.Paths.get(document.getSignedFilePath());
-            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            Path path = Paths.get(document.getSignedFilePath());
+            Resource resource = new UrlResource(path.toUri());
             if (!resource.exists()) {
-                throw new RuntimeException("Signed file not found on disk");
+                throw new ResourceNotFoundException("Signed file not found on disk");
             }
+
+            auditService.log(currentUser, document, "SIGNED_DOWNLOAD",
+                    "Downloaded signed PDF: " + document.getFileName());
+
             return resource;
         } catch (Exception e) {
             throw new RuntimeException("Could not load signed file: " + e.getMessage(), e);
@@ -121,7 +140,6 @@ public class DocumentService {
 
     public Document getDocumentEntity(Long id, User currentUser) {
         return documentRepository.findByIdAndUploadedBy(id, currentUser)
-                .orElseThrow(() -> new RuntimeException("Document not found or access denied"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found or access denied"));
     }
-
 }

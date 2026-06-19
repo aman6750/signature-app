@@ -3,6 +3,8 @@ package com.signatureapp.service;
 import com.signatureapp.dto.AuthResponse;
 import com.signatureapp.dto.LoginRequest;
 import com.signatureapp.dto.RegisterRequest;
+import com.signatureapp.exception.BadRequestException;
+import com.signatureapp.exception.UnauthorizedException;
 import com.signatureapp.model.User;
 import com.signatureapp.repository.UserRepository;
 import com.signatureapp.security.JwtUtil;
@@ -17,11 +19,12 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final AuditService auditService;
 
     public AuthResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new com.signatureapp.exception.BadRequestException("Email already registered");
+            throw new BadRequestException("Email already registered");
         }
 
         User user = User.builder()
@@ -31,10 +34,12 @@ public class AuthService {
                 .role("USER")
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        auditService.log(savedUser, null, "USER_REGISTER",
+                "New user registered with email: " + savedUser.getEmail());
 
         String token = jwtUtil.generateToken(user.getEmail());
-
         return AuthResponse.builder()
                 .token(token)
                 .email(user.getEmail())
@@ -46,14 +51,22 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new com.signatureapp.exception.UnauthorizedException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    auditService.log(null, null, "LOGIN_FAILED",
+                            "Login attempt with non-existent email: " + request.getEmail());
+                    return new UnauthorizedException("Invalid email or password");
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new com.signatureapp.exception.UnauthorizedException("Invalid email or password");
+            auditService.log(user, null, "LOGIN_FAILED",
+                    "Wrong password for user: " + user.getEmail());
+            throw new UnauthorizedException("Invalid email or password");
         }
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        auditService.log(user, null, "USER_LOGIN",
+                "Successful login by: " + user.getEmail());
 
+        String token = jwtUtil.generateToken(user.getEmail());
         return AuthResponse.builder()
                 .token(token)
                 .email(user.getEmail())

@@ -26,6 +26,7 @@ public class SignatureService {
     private final SignatureRepository signatureRepository;
     private final DocumentRepository documentRepository;
     private final PdfSigningService pdfSigningService;
+    private final AuditService auditService;
 
     @Transactional
     public SignatureResponse placeSignature(PlaceSignatureRequest request, User currentUser) {
@@ -50,6 +51,11 @@ public class SignatureService {
             document.setStatus("PENDING_SIGNATURE");
             documentRepository.save(document);
         }
+
+        auditService.log(currentUser, document, "SIGNATURE_PLACED",
+                "Placed signature on page " + request.getPageNumber()
+                        + " at (x=" + request.getXCoordinate()
+                        + ", y=" + request.getYCoordinate() + ")");
 
         return SignatureResponse.from(saved);
     }
@@ -93,6 +99,10 @@ public class SignatureService {
             sig.setSignatureData(request.getSignatureData());
         }
         signatureRepository.saveAll(signatures);
+
+        auditService.log(currentUser, document, "DOCUMENT_SIGNED",
+                "Finalized document with signature: '" + request.getSignatureData()
+                        + "' across " + signatures.size() + " placement(s)");
 
         return DocumentResponse.from(document);
     }

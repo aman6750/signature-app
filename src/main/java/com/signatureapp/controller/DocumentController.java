@@ -22,7 +22,7 @@ public class DocumentController {
 
     private final DocumentService documentService;
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = "multipart/form-data")
     public ResponseEntity<DocumentResponse> upload(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal User currentUser) {
